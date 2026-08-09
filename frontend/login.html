@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Authenticate — AI Smart Civic Services</title>
+  <meta name="description" content="Sign in or register an account to report civic issues and track resolutions." />
+  <link rel="stylesheet" href="/static/style.css" />
+  <link rel="stylesheet" href="/css/animations.css" />
+  <style>
+    /* Extra animation for auth showcase panel */
+    .auth-showcase {
+      position: relative;
+      overflow: hidden;
+    }
+    .auth-showcase-inner {
+      position: relative;
+      z-index: 2;
+    }
+    .auth-card {
+      animation: slideUpCard 0.7s cubic-bezier(0.22,1,0.36,1) both;
+    }
+    @keyframes slideUpCard {
+      from { opacity: 0; transform: translateY(30px) scale(0.97); }
+      to   { opacity: 1; transform: translateY(0) scale(1); }
+    }
+    .auth-feature-list li {
+      opacity: 0;
+      transform: translateX(-20px);
+      animation: featSlide 0.5s cubic-bezier(0.22,1,0.36,1) forwards;
+    }
+    .auth-feature-list li:nth-child(1) { animation-delay: 0.3s; }
+    .auth-feature-list li:nth-child(2) { animation-delay: 0.45s; }
+    .auth-feature-list li:nth-child(3) { animation-delay: 0.6s; }
+    .auth-feature-list li:nth-child(4) { animation-delay: 0.75s; }
+    @keyframes featSlide {
+      to { opacity: 1; transform: translateX(0); }
+    }
+    .auth-showcase-badge { animation: fadePop 0.6s 0.1s both; }
+    .auth-showcase-title { animation: fadePop 0.6s 0.2s both; }
+    .auth-showcase-desc  { animation: fadePop 0.6s 0.3s both; }
+    @keyframes fadePop {
+      from { opacity: 0; transform: translateY(16px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+  </style>
+</head>
+<body class="auth-page">
+
+<!-- ── Global particle canvas ─────────────────────────────────── -->
+<canvas id="particles-canvas"></canvas>
+
+  <nav class="navbar" id="main-nav">
+    <div class="navbar-inner">
+      <a href="/" class="navbar-brand">
+        <div class="brand-icon">🏙️</div>
+        <span>CivicAI <span class="pro-badge">PRO</span></span>
+      </a>
+      <button class="hamburger" id="hamburger-btn" aria-label="Toggle menu" onclick="toggleMobileNav()">
+        <span></span><span></span><span></span>
+      </button>
+      <ul class="navbar-links" id="navbar-links">
+        <li><a href="/"><span class="nav-icon">🏠</span> Home</a></li>
+        <li><a href="/report"><span class="nav-icon">📝</span> Report Issue</a></li>
+        <li><a href="/feed"><span class="nav-icon">📡</span> Live Feed</a></li>
+      </ul>
+      <div class="navbar-right" id="auth-nav"></div>
+    </div>
+  </nav>
+
+  <div class="auth-shell">
+    <!-- Premium showcase panel -->
+    <aside class="auth-showcase" aria-hidden="true">
+      <div class="auth-showcase-inner">
+        <div class="auth-showcase-badge">✦ Premium Civic Platform</div>
+        <h1 class="auth-showcase-title">Report smarter.<br/>Resolve faster.</h1>
+        <p class="auth-showcase-desc">Join thousands of citizens using AI-powered triage to get municipal issues resolved with precision routing and real-time tracking.</p>
+        <ul class="auth-feature-list">
+          <li><span class="feat-icon">🤖</span><div><strong>AI Triage Engine</strong><span>Gemini-powered classification &amp; priority</span></div></li>
+          <li><span class="feat-icon">📡</span><div><strong>Live Community Feed</strong><span>Track issues across your city in real time</span></div></li>
+          <li><span class="feat-icon">🔒</span><div><strong>Secure Authentication</strong><span>Google OAuth &amp; encrypted sessions</span></div></li>
+          <li><span class="feat-icon">⚡</span><div><strong>Instant Dispatch</strong><span>Auto-routed to the right department</span></div></li>
+        </ul>
+        <div class="auth-showcase-stats">
+          <div><span class="stat-num">2.4k+</span><span class="stat-label">Reports Filed</span></div>
+          <div><span class="stat-num">94%</span><span class="stat-label">Resolution Rate</span></div>
+          <div><span class="stat-num">&lt;2h</span><span class="stat-label">Avg Response</span></div>
+        </div>
+      </div>
+        <!-- Floating orbs inside showcase -->
+        <div class="orb orb-1" style="opacity:0.2;"></div>
+        <div class="orb orb-2" style="opacity:0.15;"></div>
+    </aside>
+
+    <!-- Auth form panel -->
+    <main class="auth-panel">
+      <div class="auth-card">
+        <div class="auth-header">
+          <div class="auth-logo">🏙️</div>
+          <h2 class="auth-title" id="auth-title">Welcome Back</h2>
+          <p class="auth-subtitle" id="auth-subtitle">Access your civic dashboard &amp; track reports</p>
+        </div>
+
+        <div class="auth-toggle" role="tablist">
+          <button class="auth-tab active" id="tab-login" role="tab" type="button" onclick="setAuthMode('login')">Sign In</button>
+          <button class="auth-tab" id="tab-signup" role="tab" type="button" onclick="setAuthMode('signup')">Sign Up</button>
+        </div>
+
+        <div class="auth-error" id="auth-error" role="alert">
+          <span aria-hidden="true">❌</span>
+          <span id="error-message">Error message details here.</span>
+        </div>
+
+        <button class="oauth-btn" id="google-login-btn" type="button" onclick="continueWithGoogle()">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+            <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+            <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22c-.87-2.6-2.6-4.53-5.01-4.53z" fill="#FBBC05"/>
+            <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" fill="#EA4335"/>
+          </svg>
+          Continue with Google
+        </button>
+
+        <div class="divider-text">or authenticate via email</div>
+
+        <form id="auth-form" onsubmit="handleAuthSubmit(event)" novalidate>
+          <div class="form-group" id="group-name" hidden>
+            <label class="form-label" for="display_name">Display Name</label>
+            <input type="text" class="form-control" id="display_name" placeholder="E.g. Jane Doe" autocomplete="name" />
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="email">Email Address</label>
+            <input type="email" class="form-control" id="email" required placeholder="jane@example.com" autocomplete="email" />
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="password">Password</label>
+            <input type="password" class="form-control" id="password" required placeholder="••••••••" minlength="6" autocomplete="current-password" />
+            <div class="password-strength" id="password-strength" hidden>
+              <div class="strength-bar"><div class="strength-fill" id="strength-fill"></div></div>
+              <span class="strength-label" id="strength-label"></span>
+            </div>
+          </div>
+
+          <div class="form-group" id="group-confirm" hidden>
+            <label class="form-label" for="password_confirm">Confirm Password</label>
+            <input type="password" class="form-control" id="password_confirm" placeholder="••••••••" minlength="6" autocomplete="new-password" />
+          </div>
+
+          <div class="form-group form-check" id="group-terms" hidden>
+            <label class="terms-label">
+              <input type="checkbox" id="terms_accept" />
+              <span>I agree to the <a href="#" onclick="return false;">Terms of Service</a> and <a href="#" onclick="return false;">Privacy Policy</a></span>
+            </label>
+          </div>
+
+          <button type="submit" class="btn btn-primary w-full auth-submit-btn" id="submit-btn">
+            Access Account
+          </button>
+        </form>
+
+        <p class="form-switch-desc" id="form-switch-desc">
+          Don't have an account? <a href="#" onclick="setAuthMode('signup'); return false;">Sign up here</a>
+        </p>
+      </div>
+    </main>
+  </div>
+
+  <script src="/js/auth.js"></script>
+  <script src="/js/login.js"></script>
+  <script src="/js/animations.js"></script>
+  <script>
+    function toggleMobileNav() {
+      const links = document.getElementById('navbar-links');
+      const btn   = document.getElementById('hamburger-btn');
+      links.classList.toggle('mobile-open');
+      btn.classList.toggle('open');
+    }
+  </script>
+</body>
+</html>

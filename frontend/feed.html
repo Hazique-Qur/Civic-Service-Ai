@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Live Community Feed — AI Smart Civic Services</title>
+  <meta name="description" content="Browse all active citizen complaints, AI classification status, priority levels, and live department dispatch updates across the city." />
+  <link rel="stylesheet" href="/static/style.css" />
+  <link rel="stylesheet" href="/css/animations.css" />
+  <style>
+    .feed-hero {
+      padding: 100px 0 40px;
+    }
+    .feed-counters {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 16px;
+      margin-bottom: 32px;
+    }
+    .feed-counter-card {
+      background: rgba(15,23,42,0.7);
+      border: 1px solid rgba(255,255,255,0.07);
+      border-radius: var(--radius-md);
+      padding: 20px 22px;
+      text-align: center;
+      backdrop-filter: blur(12px);
+      transition: var(--transition);
+    }
+    .feed-counter-card:hover {
+      border-color: rgba(99,102,241,0.3);
+      transform: translateY(-2px);
+    }
+    .feed-counter-num {
+      font-family: 'Outfit', sans-serif;
+      font-size: 2rem;
+      font-weight: 900;
+      background: linear-gradient(135deg, #fff 30%, var(--clr-accent-cyan));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      display: block;
+      margin-bottom: 4px;
+    }
+    .feed-counter-label {
+      font-size: 0.78rem;
+      color: var(--clr-text-muted);
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+    .feed-controls {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      align-items: center;
+      padding: 18px 22px;
+      background: rgba(15,23,42,0.7);
+      border: 1px solid rgba(255,255,255,0.07);
+      border-radius: var(--radius-md);
+      margin-bottom: 24px;
+      backdrop-filter: blur(12px);
+    }
+    .feed-controls .form-control {
+      font-size: 0.88rem;
+      padding: 10px 14px;
+    }
+    .feed-search-wrap {
+      flex: 1;
+      min-width: 200px;
+      position: relative;
+    }
+    .feed-search-wrap::before {
+      content: '🔍';
+      position: absolute;
+      left: 14px;
+      top: 50%;
+      transform: translateY(-50%);
+      font-size: 0.9rem;
+      pointer-events: none;
+    }
+    .feed-search-wrap .form-control {
+      padding-left: 40px;
+    }
+    .feed-select {
+      background: rgba(15,23,42,0.8);
+      border: 1px solid var(--clr-border-bright);
+      border-radius: var(--radius-sm);
+      color: var(--clr-text-secondary);
+      padding: 10px 14px;
+      font-size: 0.85rem;
+      font-family: 'Inter', sans-serif;
+      cursor: pointer;
+      min-width: 155px;
+      outline: none;
+      transition: var(--transition);
+    }
+    .feed-select:focus {
+      border-color: var(--clr-primary);
+      box-shadow: 0 0 0 3px var(--clr-primary-glow);
+    }
+    .feed-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 14px;
+      margin-bottom: 28px;
+    }
+    .feed-pagination {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 0;
+    }
+    .feed-skeleton {
+      display: grid;
+      gap: 14px;
+    }
+    .skeleton-card {
+      background: rgba(15,23,42,0.5);
+      border: 1px solid rgba(255,255,255,0.05);
+      border-radius: var(--radius-lg);
+      padding: 24px 28px;
+      animation: pulse 1.8s ease-in-out infinite;
+    }
+    .skeleton-line {
+      height: 12px;
+      background: rgba(255,255,255,0.06);
+      border-radius: 6px;
+      margin-bottom: 10px;
+    }
+    .skeleton-line.w-80 { width: 80%; }
+    .skeleton-line.w-60 { width: 60%; }
+    .skeleton-line.w-40 { width: 40%; }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+    .live-dot {
+      display: inline-block;
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: #10b981;
+      margin-right: 6px;
+      animation: livePulse 2s ease-in-out infinite;
+    }
+    @keyframes livePulse {
+      0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(16,185,129,0.4); }
+      50% { opacity: 0.7; box-shadow: 0 0 0 6px rgba(16,185,129,0); }
+    }
+    @media (max-width: 768px) {
+      .feed-counters { grid-template-columns: repeat(2, 1fr); }
+      .feed-controls { flex-direction: column; }
+      .feed-search-wrap, .feed-select { width: 100%; }
+    }
+    @media (max-width: 480px) {
+      .feed-counters { grid-template-columns: 1fr 1fr; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── Navbar ─────────────────────────────────────────────────────── -->
+<nav class="navbar" id="main-nav">
+  <div class="navbar-inner">
+    <a href="/" class="navbar-brand">
+      <div class="brand-icon">🏙️</div>
+      <span>CivicAI <span style="font-size:0.72rem;font-weight:700;color:var(--clr-accent-cyan);vertical-align:super;letter-spacing:0;">PRO</span></span>
+    </a>
+
+    <ul class="navbar-links" id="navbar-links">
+      <li><a href="/" id="nav-home">
+        <span class="nav-icon">🏠</span> Home
+      </a></li>
+
+      <li><a href="/report" id="nav-report">
+        <span class="nav-icon">📝</span> Report Issue
+      </a></li>
+
+      <li><a href="/feed" class="active" id="nav-feed">
+        <span class="nav-icon">📡</span> Live Feed
+      </a></li>
+
+      <li class="nav-divider" aria-hidden="true"></li>
+
+      <li class="nav-dropdown" id="nav-services-dropdown">
+        <a href="#" onclick="return false;" id="nav-services">
+          <span class="nav-icon">🌐</span> Services
+        </a>
+        <div class="nav-dropdown-menu">
+          <a href="/report">
+            <div class="drop-icon">🤖</div>
+            <div class="drop-info">
+              <span class="drop-label">AI Triage Studio</span>
+              <span class="drop-sub">Submit &amp; classify issues</span>
+            </div>
+          </a>
+          <a href="/feed">
+            <div class="drop-icon">📡</div>
+            <div class="drop-info">
+              <span class="drop-label">Community Reports</span>
+              <span class="drop-sub">Live citizen issue feed</span>
+            </div>
+          </a>
+          <div class="nav-dropdown-divider"></div>
+          <a href="/admin">
+            <div class="drop-icon">🖥️</div>
+            <div class="drop-info">
+              <span class="drop-label">Admin Dashboard</span>
+              <span class="drop-sub">Command center</span>
+            </div>
+          </a>
+        </div>
+      </li>
+
+      <li class="nav-divider" aria-hidden="true"></li>
+
+      <li><a href="/admin" id="nav-admin">
+        <span class="nav-icon">🖥️</span> Admin Command
+      </a></li>
+    </ul>
+
+    <div class="navbar-right">
+      <div id="auth-nav"></div>
+      <div id="ai-status-badge" class="badge badge-medium" style="font-size:0.74rem;">
+        ⚡ Checking AI...
+      </div>
+      <button class="hamburger" id="hamburger-btn" aria-label="Toggle menu" onclick="toggleMobileNav()">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+  </div>
+</nav>
+
+<!-- ── Toast Container ────────────────────────────────────────────── -->
+<div class="toast-container" id="toast-container"></div>
+
+<main class="container">
+  <!-- ── Hero Header ───────────────────────────────────────────────── -->
+  <section class="feed-hero">
+    <div class="flex-between" style="flex-wrap:wrap;gap:16px;margin-bottom:10px;">
+      <div>
+        <div class="section-eyebrow"><span class="live-dot"></span>Live Community Feed</div>
+        <h1 class="section-title" style="margin-bottom:6px;">City Issues Dashboard</h1>
+        <p class="section-subtitle">Real-time view of all civic reports — search, filter by category, priority or status.</p>
+      </div>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+        <span class="text-xs text-muted" id="last-sync" style="font-family:'JetBrains Mono',monospace;"></span>
+        <button class="btn btn-ghost btn-sm" id="feed-refresh-btn">🔄 Refresh</button>
+        <a href="/report" class="btn btn-primary btn-sm">📝 Report Issue</a>
+      </div>
+    </div>
+
+    <!-- ── Live Counters ─────────────────────────────────────────────── -->
+    <div class="feed-counters">
+      <div class="feed-counter-card">
+        <span class="feed-counter-num" id="cnt-total">—</span>
+        <span class="feed-counter-label">Total Reports</span>
+      </div>
+      <div class="feed-counter-card">
+        <span class="feed-counter-num" id="cnt-open" style="background:linear-gradient(135deg,#94a3b8,#64748b);-webkit-background-clip:text;-webkit-text-fill-color:transparent;">—</span>
+        <span class="feed-counter-label">Open</span>
+      </div>
+      <div class="feed-counter-card">
+        <span class="feed-counter-num" id="cnt-critical" style="background:linear-gradient(135deg,#f43f5e,#fb923c);-webkit-background-clip:text;-webkit-text-fill-color:transparent;">—</span>
+        <span class="feed-counter-label">Critical</span>
+      </div>
+      <div class="feed-counter-card">
+        <span class="feed-counter-num" id="cnt-resolved" style="background:linear-gradient(135deg,#10b981,#06b6d4);-webkit-background-clip:text;-webkit-text-fill-color:transparent;">—</span>
+        <span class="feed-counter-label">Resolved</span>
+      </div>
+    </div>
+
+    <!-- ── Filter Controls ───────────────────────────────────────────── -->
+    <div class="feed-controls">
+      <div class="feed-search-wrap">
+        <input
+          type="text"
+          class="form-control"
+          id="feed-search"
+          placeholder="Search complaints by description or location..."
+          autocomplete="off"
+        />
+      </div>
+
+      <select class="feed-select" id="feed-category" aria-label="Filter by category">
+        <option value="">All Categories</option>
+      </select>
+
+      <select class="feed-select" id="feed-priority" aria-label="Filter by priority">
+        <option value="">All Priorities</option>
+        <option value="Critical">🔴 Critical</option>
+        <option value="High">🟠 High</option>
+        <option value="Medium">🟡 Medium</option>
+        <option value="Low">🟢 Low</option>
+      </select>
+
+      <select class="feed-select" id="feed-status" aria-label="Filter by status">
+        <option value="">All Statuses</option>
+        <option value="Open">Open</option>
+        <option value="Assigned">Assigned</option>
+        <option value="In Progress">In Progress</option>
+        <option value="Resolved">Resolved</option>
+      </select>
+
+      <button class="btn btn-ghost btn-sm" id="feed-clear-btn">✕ Clear</button>
+    </div>
+
+    <!-- ── Skeleton Loading ──────────────────────────────────────────── -->
+    <div id="feed-skeleton" class="feed-skeleton">
+      <div class="skeleton-card">
+        <div class="skeleton-line w-40" style="height:14px;margin-bottom:16px;"></div>
+        <div class="skeleton-line w-80"></div>
+        <div class="skeleton-line w-60"></div>
+      </div>
+      <div class="skeleton-card">
+        <div class="skeleton-line w-40" style="height:14px;margin-bottom:16px;"></div>
+        <div class="skeleton-line w-80"></div>
+        <div class="skeleton-line w-60"></div>
+      </div>
+      <div class="skeleton-card">
+        <div class="skeleton-line w-40" style="height:14px;margin-bottom:16px;"></div>
+        <div class="skeleton-line w-80"></div>
+        <div class="skeleton-line w-60"></div>
+      </div>
+    </div>
+
+    <!-- ── Feed Cards Grid ───────────────────────────────────────────── -->
+    <div class="feed-grid" id="feed-container"></div>
+
+    <!-- ── Empty State ───────────────────────────────────────────────── -->
+    <div id="feed-empty" class="hidden" style="text-align:center;padding:64px 32px;">
+      <div style="font-size:3rem;margin-bottom:16px;filter:drop-shadow(0 0 15px rgba(99,102,241,0.3));">📋</div>
+      <h3 style="font-size:1.2rem;margin-bottom:8px;">No matching reports found</h3>
+      <p class="text-secondary text-sm">Try adjusting your filters or <a href="/report" style="color:var(--clr-primary);">submit the first report</a>.</p>
+    </div>
+
+    <!-- ── Pagination ────────────────────────────────────────────────── -->
+    <div class="feed-pagination">
+      <span class="text-xs text-muted" id="feed-page-info">—</span>
+      <div style="display:flex;gap:8px;">
+        <button class="btn btn-ghost btn-sm" id="feed-prev-btn" disabled>← Previous</button>
+        <button class="btn btn-ghost btn-sm" id="feed-next-btn" disabled>Next →</button>
+      </div>
+    </div>
+  </section>
+</main>
+
+<!-- ── Floating AI Chat Widget ────────────────────────────────────── -->
+<div id="chat-widget" style="position:fixed;bottom:32px;right:32px;z-index:300;">
+  <!-- Chat Panel -->
+  <div id="chat-panel" class="hidden" style="
+    position:absolute;bottom:72px;right:0;
+    width:360px;
+    background:var(--clr-bg-surface);
+    border:1px solid var(--clr-border-neon);
+    border-radius:var(--radius-xl);
+    overflow:hidden;
+    box-shadow:0 24px 70px rgba(0,0,0,0.7);
+    display:flex;flex-direction:column;
+    height:460px;
+  ">
+    <!-- Header -->
+    <div style="padding:18px 22px;background:linear-gradient(135deg,var(--clr-primary),var(--clr-accent-cyan));display:flex;align-items:center;gap:12px;">
+      <div style="width:38px;height:38px;border-radius:50%;background:rgba(255,255,255,0.2);display:flex;align-items:center;justify-content:center;font-size:1.2rem;">🤖</div>
+      <div>
+        <p style="font-weight:800;color:#fff;font-size:1rem;">CivicAI Assistant</p>
+        <p style="font-size:0.72rem;color:rgba(255,255,255,0.85);">Powered by Gemini 2.0 AI</p>
+      </div>
+    </div>
+    <!-- Messages -->
+    <div id="chat-messages" style="flex:1;overflow-y:auto;padding:18px;display:flex;flex-direction:column;gap:8px;"></div>
+    <!-- Input -->
+    <div style="padding:14px 18px;border-top:1px solid var(--clr-border);display:flex;gap:10px;background:rgba(15,23,42,0.6);">
+      <input
+        type="text"
+        id="chat-input"
+        placeholder="Ask a question about civic services..."
+        style="flex:1;background:rgba(255,255,255,0.05);border:1px solid var(--clr-border);border-radius:var(--radius-md);padding:11px 16px;color:var(--clr-text-primary);font-size:0.88rem;font-family:'Inter',sans-serif;outline:none;"
+      />
+      <button id="chat-send-btn" class="btn btn-primary btn-sm" style="padding:11px 16px;">➤</button>
+    </div>
+  </div>
+
+  <button
+    id="chat-toggle-btn"
+    style="
+      width:56px;height:56px;
+      border-radius:50%;
+      background:linear-gradient(135deg,var(--clr-primary),var(--clr-accent-cyan));
+      border:none;cursor:pointer;
+      font-size:1.5rem;
+      display:flex;align-items:center;justify-content:center;
+      box-shadow:0 10px 30px rgba(99,102,241,0.45);
+      transition:var(--transition);
+      color:#fff;
+    "
+    aria-label="Open AI assistant chat"
+  >💬</button>
+</div>
+
+<script src="/js/auth.js"></script>
+<script>
+  function toggleMobileNav() {
+    const links = document.getElementById('navbar-links');
+    const btn   = document.getElementById('hamburger-btn');
+    links.classList.toggle('mobile-open');
+    btn.classList.toggle('open');
+  }
+  document.addEventListener('DOMContentLoaded', () => initAuthNav('auth-nav'));
+</script>
+
+<script src="/js/citizen.js"></script>
+<script src="/js/feed.js"></script>
+<script src="/js/animations.js"></script>
+</body>
+</html>
