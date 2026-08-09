@@ -3,8 +3,43 @@ services:
     name: ai-civic-services
     env: python
     rootDir: backend
+    plan: free
     buildCommand: pip install -r requirements.txt
     startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+
+    # ── Persistent disk so SQLite DB survives redeploys ($1/mo) ──────
+    disk:
+      name: civic-db
+      mountPath: /data
+      sizeGB: 1
+
     envVars:
+      # ── Required: set in Render dashboard ────────────────────────
       - key: GEMINI_API_KEY
-        sync: false   # Set this in Render dashboard manually
+        sync: false           # Paste your Google AI Studio key
+
+      - key: SECRET_KEY
+        generateValue: true   # Render generates a secure random secret automatically
+
+      # ── Database: point SQLite to the persistent disk ─────────────
+      - key: DB_PATH
+        value: /data/civic_complaints.db
+
+      # ── Admin account (change password in dashboard!) ─────────────
+      - key: ADMIN_EMAIL
+        value: admin@civicai.com
+      - key: ADMIN_PASSWORD
+        sync: false           # Set a strong password in Render dashboard
+
+      # ── Google OAuth (optional – leave blank to use mock flow) ─────
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      # GOOGLE_REDIRECT_URI is set automatically by main.py from APP_URL below
+      - key: APP_URL
+        sync: false           # Set to: https://ai-civic-services.onrender.com
+
+      # ── CORS: restrict to your live domain after first deploy ──────
+      - key: ALLOWED_ORIGINS
+        sync: false           # Set to: https://ai-civic-services.onrender.com

@@ -58,8 +58,11 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
-# App setup
+# CORS — restrict to live domain in production via ALLOWED_ORIGINS env var
 # ---------------------------------------------------------------------------
+_raw_origins = os.environ.get("ALLOWED_ORIGINS", "")
+ALLOWED_ORIGINS: list = [o.strip() for o in _raw_origins.split(",") if o.strip()] or ["*"]
+
 app = FastAPI(
     title="AI Smart Civic Services API",
     description="Citizens report local problems; AI classifies, prioritizes, and summarizes them.",
@@ -68,7 +71,8 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=ALLOWED_ORIGINS,
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -83,16 +87,28 @@ manager = ComplaintManager(db=db, ai=ai)
 # ---------------------------------------------------------------------------
 # Authentication Configuration
 # ---------------------------------------------------------------------------
-SECRET_KEY      = os.environ.get("SECRET_KEY", "civicai-default-secret-key")
+_DEFAULT_SECRET = "civicai-default-secret-key"
+SECRET_KEY      = os.environ.get("SECRET_KEY", _DEFAULT_SECRET)
 ALGORITHM      = "HS256"
 ACCESS_TOKEN_EXPIRE_HOURS = 24
+
+if SECRET_KEY == _DEFAULT_SECRET:
+    logger.warning(
+        "⚠️  Using default SECRET_KEY — set a strong SECRET_KEY env var in production!"
+    )
 
 ADMIN_EMAIL    = os.environ.get("ADMIN_EMAIL", "admin@civicai.com")
 ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "admin123")
 
 GOOGLE_CLIENT_ID     = os.environ.get("GOOGLE_CLIENT_ID", "")
 GOOGLE_CLIENT_SECRET = os.environ.get("GOOGLE_CLIENT_SECRET", "")
-GOOGLE_REDIRECT_URI  = os.environ.get("GOOGLE_REDIRECT_URI", "http://localhost:8000/api/auth/google/callback")
+
+# Auto-derive Google redirect URI from APP_URL when deployed
+_APP_URL = os.environ.get("APP_URL", "").rstrip("/")
+GOOGLE_REDIRECT_URI = os.environ.get(
+    "GOOGLE_REDIRECT_URI",
+    f"{_APP_URL}/api/auth/google/callback" if _APP_URL else "http://localhost:8000/api/auth/google/callback"
+)
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 

@@ -1,0 +1,36 @@
+# ── Secrets & environment ────────────────────────────────────────────
+.env
+.env.local
+.env.production
+
+# ── SQLite database (use Render Disk / external DB in production) ────
+*.db
+*.db-shm
+*.db-wal
+
+# ── Python ───────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+*.whl
+.venv/
+venv/
+env/
+
+# ── OS / Editor ──────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# ── Logs ─────────────────────────────────────────────────────────────
+*.log
+logs/
