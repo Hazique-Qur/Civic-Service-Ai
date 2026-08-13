@@ -7,8 +7,9 @@ Follows the OOP pattern: one class, one responsibility.
 
 import sqlite3
 import os
+from contextlib import contextmanager
 from datetime import datetime
-from typing import Optional
+from typing import Optional, Generator
 
 from models import Complaint, Category, Priority, ComplaintStatus, Department, User, UserRole
 
@@ -30,11 +31,19 @@ class DatabaseManager:
     # Internal helpers
     # ------------------------------------------------------------------
 
-    def _get_connection(self) -> sqlite3.Connection:
+    @contextmanager
+    def _get_connection(self) -> Generator[sqlite3.Connection, None, None]:
         conn = sqlite3.connect(self.db_path)
         conn.row_factory = sqlite3.Row   # enables column-name access
         conn.execute("PRAGMA journal_mode=WAL;")  # better concurrency
-        return conn
+        try:
+            yield conn
+            conn.commit()
+        except Exception:
+            conn.rollback()
+            raise
+        finally:
+            conn.close()
 
     def _init_database(self) -> None:
         """Create tables if they don't already exist."""
@@ -45,6 +54,7 @@ class DatabaseManager:
                     description      TEXT    NOT NULL,
                     location         TEXT    NOT NULL,
                     contact          TEXT    DEFAULT '',
+                    user_id          INTEGER DEFAULT NULL,
                     category         TEXT    NOT NULL DEFAULT 'Other',
                     priority         TEXT    NOT NULL DEFAULT 'Medium',
                     ai_summary       TEXT    DEFAULT '',
@@ -58,11 +68,17 @@ class DatabaseManager:
                     date_resolved    TEXT    DEFAULT NULL
                 )
             """)
+            # Migration: add user_id column to existing databases
+            try:
+                conn.execute("ALTER TABLE complaints ADD COLUMN user_id INTEGER DEFAULT NULL")
+            except sqlite3.OperationalError:
+                pass
             # Index for common filters
             conn.execute("CREATE INDEX IF NOT EXISTS idx_status   ON complaints(status);")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_category ON complaints(category);")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_priority ON complaints(priority);")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_date     ON complaints(date_submitted);")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_user_id  ON complaints(user_id);")
 
             # ── Users Table ────────────────────────────────────────────────
             conn.execute("""
@@ -80,7 +96,6 @@ class DatabaseManager:
             """)
             conn.execute("CREATE INDEX IF NOT EXISTS idx_users_email     ON users(email);")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_users_google_id ON users(google_id);")
-            conn.commit()
 
     # ------------------------------------------------------------------
     # Write operations
@@ -91,14 +106,15 @@ class DatabaseManager:
         with self._get_connection() as conn:
             cursor = conn.execute("""
                 INSERT INTO complaints
-                    (description, location, contact, category, priority,
+                    (description, location, contact, user_id, category, priority,
                      ai_summary, ai_confidence, ai_reasoning, ai_used_fallback,
                      status, department, admin_notes, date_submitted, date_resolved)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 complaint.description,
                 complaint.location,
                 complaint.contact,
+                complaint.user_id,
                 complaint.category.value,
                 complaint.priority.value,
                 complaint.ai_summary,
@@ -111,7 +127,6 @@ class DatabaseManager:
                 complaint.date_submitted.isoformat(),
                 complaint.date_resolved.isoformat() if complaint.date_resolved else None,
             ))
-            conn.commit()
             complaint.id = cursor.lastrowid
         return complaint
 
@@ -148,7 +163,6 @@ class DatabaseManager:
                 date_resolved.isoformat() if date_resolved else None,
                 complaint_id,
             ))
-            conn.commit()
 
         return self.get_complaint_by_id(complaint_id)
 

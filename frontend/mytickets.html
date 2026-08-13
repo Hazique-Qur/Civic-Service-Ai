@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>My Tickets — AI Smart Civic Services</title>
+  <meta name="description" content="Track your submitted civic complaints and their resolution status." />
+  <link rel="stylesheet" href="/static/style.css" />
+  <link rel="stylesheet" href="/css/animations.css" />
+  <style>
+    .mytickets-hero { padding: 100px 0 40px; }
+    .ticket-card {
+      background: var(--clr-bg-card);
+      border: 1px solid var(--clr-border);
+      border-radius: var(--radius-lg);
+      padding: 24px 28px;
+      position: relative;
+      transition: var(--transition);
+    }
+    .ticket-card:hover {
+      border-color: var(--clr-border-neon);
+      transform: translateY(-2px);
+    }
+    .ticket-card .ticket-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-bottom: 14px;
+    }
+    .ticket-card .ticket-id {
+      font-family: 'JetBrains Mono', monospace;
+      font-weight: 700;
+      color: #a5b4fc;
+      font-size: 0.85rem;
+    }
+    .ticket-card .ticket-desc {
+      font-size: 0.95rem;
+      color: var(--clr-text-primary);
+      line-height: 1.6;
+      margin-bottom: 14px;
+    }
+    .ticket-card .ticket-meta {
+      display: flex;
+      gap: 16px;
+      flex-wrap: wrap;
+      align-items: center;
+      font-size: 0.82rem;
+      color: var(--clr-text-muted);
+    }
+    .ticket-card .ticket-ai {
+      margin-top: 14px;
+      padding: 14px;
+      background: rgba(99,102,241,0.06);
+      border: 1px solid rgba(99,102,241,0.15);
+      border-radius: var(--radius-sm);
+      font-size: 0.85rem;
+      color: var(--clr-text-secondary);
+      line-height: 1.5;
+    }
+    .empty-state {
+      text-align: center;
+      padding: 80px 32px;
+    }
+    .empty-state .empty-icon {
+      font-size: 3.5rem;
+      margin-bottom: 16px;
+      filter: drop-shadow(0 0 15px rgba(99,102,241,0.3));
+    }
+    @media (max-width: 768px) {
+      .ticket-meta { flex-direction: column; align-items: flex-start; }
+    }
+  </style>
+</head>
+<body>
+<canvas id="particles-canvas"></canvas>
+
+<nav class="navbar" id="main-nav">
+  <div class="navbar-inner">
+    <a href="/" class="navbar-brand">
+      <div class="brand-icon">🏙️</div>
+      <span>CivicAI <span style="font-size:0.72rem;font-weight:700;color:var(--clr-accent-cyan);vertical-align:super;letter-spacing:0;">PRO</span></span>
+    </a>
+    <ul class="navbar-links" id="navbar-links">
+      <li><a href="/">Home</a></li>
+      <li><a href="/report">Report Issue</a></li>
+      <li><a href="/feed">Live Feed</a></li>
+      <li class="nav-divider" aria-hidden="true"></li>
+      <li><a href="/mytickets" class="active">My Tickets</a></li>
+      <li><a href="/admin">Admin</a></li>
+    </ul>
+    <div class="navbar-right">
+      <div id="auth-nav"></div>
+      <button class="hamburger" id="hamburger-btn" aria-label="Toggle menu" onclick="toggleMobileNav()">
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+  </div>
+</nav>
+
+<div class="toast-container" id="toast-container"></div>
+
+<main class="container">
+  <section class="mytickets-hero">
+    <div class="section-header-block" style="margin-bottom:24px;">
+      <div class="section-eyebrow">🎫 My Tickets</div>
+      <h1 class="section-title">Your Civic Reports</h1>
+      <p class="section-subtitle">Track the status and AI analysis of every issue you have reported.</p>
+    </div>
+
+    <div id="tickets-container" class="feed-grid" style="margin-top:24px;"></div>
+
+    <div id="tickets-empty" class="empty-state hidden">
+      <div class="empty-icon">📋</div>
+      <h3 style="font-size:1.2rem;margin-bottom:8px;">No tickets yet</h3>
+      <p class="text-secondary text-sm">You haven't submitted any complaints while logged in. <a href="/report" style="color:var(--clr-primary);">Submit your first report</a>.</p>
+    </div>
+  </section>
+</main>
+
+<script src="/js/auth.js"></script>
+<script>
+  function toggleMobileNav() {
+    const links = document.getElementById('navbar-links');
+    const btn   = document.getElementById('hamburger-btn');
+    links.classList.toggle('mobile-open');
+    btn.classList.toggle('open');
+  }
+
+  function getPriorityClass(p) {
+    return { Critical:'critical', High:'high', Medium:'medium', Low:'low' }[p] || 'medium';
+  }
+  function getStatusClass(s) {
+    return { Open:'open', Assigned:'assigned', 'In Progress':'in-progress', Resolved:'resolved', Successful:'resolved' }[s] || 'open';
+  }
+  function getCategoryEmoji(c) {
+    const m = {
+      'Water/Drainage':'💧','Roads/Pavements':'🛣️','Waste/Sanitation':'🗑️',
+      'Electricity':'⚡','Parks/Green Spaces':'🌳','Noise/Disturbance':'🔊',
+      'Public Safety':'🚨','Other':'📋'
+    };
+    return m[c] || '📋';
+  }
+  function escapeHtml(str) {
+    return String(str || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+  function timeAgo(iso) {
+    const diff = Date.now() - new Date(iso + 'Z').getTime();
+    const mins = Math.floor(diff / 60000);
+    if (mins < 1) return 'just now';
+    if (mins < 60) return `${mins}m ago`;
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24) return `${hrs}h ago`;
+    return `${Math.floor(hrs / 24)}d ago`;
+  }
+
+  async function loadMyTickets() {
+    const container = document.getElementById('tickets-container');
+    const emptyEl = document.getElementById('tickets-empty');
+    try {
+      const res = await fetch('/api/my/complaints', { credentials: 'include' });
+      if (!res.ok) {
+        if (res.status === 401) {
+          window.location.href = '/login?redirect=mytickets';
+          return;
+        }
+        throw new Error('Failed to load tickets');
+      }
+      const data = await res.json();
+      const tickets = data.complaints || [];
+      if (!tickets.length) {
+        container.innerHTML = '';
+        emptyEl.classList.remove('hidden');
+        return;
+      }
+      emptyEl.classList.add('hidden');
+      container.innerHTML = tickets.map(c => {
+        const emoji = getCategoryEmoji(c.category);
+        const pClass = getPriorityClass(c.priority);
+        const sClass = getStatusClass(c.status);
+        const pct = Math.round((c.ai_confidence || 0) * 100);
+        const desc = c.description.length > 140 ? c.description.slice(0, 140) + '...' : c.description;
+        return `
+          <div class="ticket-card">
+            <div class="ticket-header">
+              <span class="ticket-id">#${String(c.id).padStart(4, '0')}</span>
+              <span class="category-chip" style="font-size:0.75rem;">${emoji} ${c.category}</span>
+              <span class="badge badge-${pClass}" style="font-size:0.74rem;">${c.priority}</span>
+              <span class="badge badge-${sClass}" style="font-size:0.74rem;">${c.status}</span>
+            </div>
+            <p class="ticket-desc">${escapeHtml(desc)}</p>
+            <div class="ticket-meta">
+              <span>📍 ${escapeHtml(c.location)}</span>
+              <span>🏢 ${escapeHtml(c.department)}</span>
+              <span>🕐 ${timeAgo(c.date_submitted)}</span>
+            </div>
+            ${c.ai_summary ? `<div class="ticket-ai">✦ ${escapeHtml(c.ai_summary)}</div>` : ''}
+          </div>
+        `;
+      }).join('');
+    } catch (e) {
+      container.innerHTML = '<p class="text-muted text-sm text-center" style="padding:48px;">Failed to load your tickets. Please try again.</p>';
+    }
+  }
+
+  document.addEventListener('DOMContentLoaded', () => {
+    initAuthNav('auth-nav');
+    loadMyTickets();
+  });
+</script>
+</body>
+</html>

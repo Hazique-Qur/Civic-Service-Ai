@@ -96,13 +96,14 @@ Priority guide:
     def __init__(self, api_key: Optional[str] = None):
         self._api_available = False
         self._client = None
+        self._model = os.environ.get("GEMINI_MODEL", "gemini-3.5-flash")
         api_key = api_key or os.environ.get("GEMINI_API_KEY", "")
         if api_key:
             try:
                 from google import genai
                 self._client = genai.Client(api_key=api_key)
                 self._api_available = True
-                logger.info("AIAnalyzer: Gemini API (google-genai) initialized successfully.")
+                logger.info(f"AIAnalyzer: Gemini API initialized with model {self._model}.")
             except Exception as e:
                 logger.warning(f"AIAnalyzer: Gemini init failed — {e}. Using fallback classifier.")
         else:
@@ -141,7 +142,7 @@ Priority guide:
         prompt = self.GEMINI_PROMPT.format(description=description, location=location)
 
         response = self._client.models.generate_content(
-            model="gemini-2.0-flash",
+            model=self._model,
             contents=prompt,
         )
         raw_text = response.text.strip()

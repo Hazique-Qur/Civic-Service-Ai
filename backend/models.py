@@ -103,6 +103,9 @@ class Complaint:
     # Optional citizen contact
     contact: str = ""
 
+    # Linked user account (if submitted while logged in)
+    user_id: Optional[int] = None
+
     # Auto-managed
     id: Optional[int] = None
     date_submitted: datetime = field(default_factory=datetime.utcnow)
@@ -115,6 +118,7 @@ class Complaint:
             "description": self.description,
             "location": self.location,
             "contact": self.contact,
+            "user_id": self.user_id,
             "category": self.category.value,
             "priority": self.priority.value,
             "ai_summary": self.ai_summary,
@@ -140,6 +144,7 @@ class Complaint:
             description=data["description"],
             location=data["location"],
             contact=data.get("contact", ""),
+            user_id=data.get("user_id"),
             category=Category(data["category"]),
             priority=Priority(data["priority"]),
             ai_summary=data.get("ai_summary", ""),

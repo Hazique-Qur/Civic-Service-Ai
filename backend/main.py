@@ -31,8 +31,11 @@ except ImportError:
 import logging
 import os
 import time
+import warnings
 from datetime import datetime, timedelta
 from typing import Optional
+
+warnings.filterwarnings("ignore", "datetime.datetime.utcnow", DeprecationWarning)
 
 from fastapi import FastAPI, HTTPException, Query, Header, Cookie, Response
 from fastapi.middleware.cors import CORSMiddleware
@@ -382,16 +385,20 @@ def reset_database(authorization: str = Header(default="")):
 # ---------------------------------------------------------------------------
 
 @app.post("/api/complaints", status_code=201, summary="Submit a new complaint")
-def submit_complaint(body: SubmitComplaintRequest):
+def submit_complaint(body: SubmitComplaintRequest, access_token: Optional[str] = Cookie(default=None)):
     """
     Accepts a citizen complaint, runs AI analysis, saves to database.
     Returns the full complaint object including AI-generated fields.
+    Optionally links the complaint to the logged-in user.
     """
+    user = get_current_user_from_cookie(access_token)
+    user_id = user.id if user else None
     try:
         complaint = manager.submit_complaint(
             description=body.description,
             location=body.location,
             contact=body.contact,
+            user_id=user_id,
         )
         return {"success": True, "complaint": complaint.to_dict()}
     except ValueError as e:
@@ -399,6 +406,22 @@ def submit_complaint(body: SubmitComplaintRequest):
     except Exception as e:
         logger.error(f"submit_complaint error: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to process complaint. Please try again.")
+
+
+@app.get("/api/my/complaints", summary="List complaints for the logged-in user")
+def get_my_complaints(access_token: Optional[str] = Cookie(default=None)):
+    """Returns complaints submitted by the currently logged-in user."""
+    user = get_current_user_from_cookie(access_token)
+    if not user:
+        raise HTTPException(status_code=401, detail="Please log in to view your tickets.")
+    complaints = manager.list_complaints(limit=500)
+    my_complaints = [c for c in complaints if c.user_id == user.id]
+    return {
+        "success": True,
+        "count": len(my_complaints),
+        "complaints": [c.to_dict() for c in my_complaints],
+    }
+
 
 # ---------------------------------------------------------------------------
 # Routes — Admin / Shared
@@ -536,7 +559,7 @@ Complaint:
   Days Open: {(datetime.utcnow() - complaint.date_submitted).days}
 
 Respond in 2-3 sentences: what should the admin do RIGHT NOW?"""
-        response = client.models.generate_content(model="gemini-2.0-flash", contents=prompt)
+        response = client.models.generate_content(model=os.environ.get("GEMINI_MODEL", "gemini-3.5-flash"), contents=prompt)
         return {"success": True, "suggestion": response.text.strip(), "ai_active": True}
     except Exception as e:
         logger.error(f"Suggest action error: {e}")
@@ -582,7 +605,7 @@ Department SLA targets: Water Authority 12h, Electricity Board 24h, Public Works
 Always be friendly, helpful, and concise. If a citizen describes a problem, tell them
 which category it falls under and encourage them to submit it using the form."""
             full_prompt = system_prompt + f"\n\nCitizen's message: {body.message}"
-            response = client.models.generate_content(model="gemini-2.0-flash", contents=full_prompt)
+            response = client.models.generate_content(model=os.environ.get("GEMINI_MODEL", "gemini-3.5-flash"), contents=full_prompt)
             return {"success": True, "reply": response.text.strip(), "ai_active": True}
         except Exception as e:
             logger.warning(f"Chat Gemini call failed, using smart fallback: {e}")
@@ -729,7 +752,7 @@ Respond ONLY with valid JSON:
 
 Mark as duplicate only if the same issue at essentially the same location is already reported and not yet resolved."""
 
-        response = client.models.generate_content(model="gemini-2.0-flash", contents=prompt)
+        response = client.models.generate_content(model=os.environ.get("GEMINI_MODEL", "gemini-3.5-flash"), contents=prompt)
         import json, re
         match = re.search(r"\{.*\}", response.text, re.DOTALL)
         if match:
@@ -746,47 +769,6 @@ Mark as duplicate only if the same issue at essentially the same location is alr
     except Exception as e:
         logger.error(f"Duplicate check error: {e}")
     return {"is_duplicate": False, "similar_complaint": None, "similarity_score": 0.0}
-
-
-@app.get("/api/complaints/{complaint_id}/suggest-action", summary="AI-suggested next action for admins")
-async def suggest_action(complaint_id: int):
-    """
-    Advanced AI feature: analyzes a complaint and suggests the optimal next action
-    for the admin — e.g. which department to assign, what action to take, urgency level.
-    """
-    complaint = manager.get_complaint(complaint_id)
-    if not complaint:
-        raise HTTPException(status_code=404, detail=f"Complaint #{complaint_id} not found.")
-
-    if not ai.is_using_ai:
-        return {
-            "success": True,
-            "suggestion": f"Assign to {complaint.department.value} and update status to In Progress.",
-            "ai_active": False,
-        }
-    try:
-        from google import genai
-        client = genai.Client(api_key=os.environ.get("GEMINI_API_KEY", ""))
-        prompt = f"""You are an expert civic operations advisor.
-Analyze this complaint and give a concise, actionable recommendation for the admin.
-
-Complaint:
-  Category: {complaint.category.value}
-  Priority: {complaint.priority.value}
-  Status: {complaint.status.value}
-  Department: {complaint.department.value}
-  Location: {complaint.location}
-  Description: {complaint.description}
-  AI Summary: {complaint.ai_summary}
-  Days Open: {((__import__('datetime').datetime.utcnow()) - complaint.date_submitted).days}
-
-Respond in 2–3 sentences: what should the admin do RIGHT NOW?"""
-        response = client.models.generate_content(model="gemini-2.0-flash", contents=prompt)
-        return {"success": True, "suggestion": response.text.strip(), "ai_active": True}
-    except Exception as e:
-        logger.error(f"Suggest action error: {e}")
-        raise HTTPException(status_code=500, detail="AI suggestion unavailable.")
-
 
 
 frontend_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "frontend"))
@@ -853,6 +835,14 @@ if os.path.isdir(frontend_dir):
         if not user or user.role != UserRole.ADMIN:
             return RedirectResponse(url="/login?redirect=admin&reason=admin_required", status_code=302)
         return _serve("admin.html")
+
+    @app.get("/mytickets", include_in_schema=False)
+    def serve_my_tickets(access_token: Optional[str] = Cookie(default=None)):
+        """Serve the My Tickets page for logged-in citizens."""
+        user = get_current_user_from_cookie(access_token)
+        if not user:
+            return RedirectResponse(url="/login?redirect=mytickets", status_code=302)
+        return _serve("mytickets.html")
 
 
 # ---------------------------------------------------------------------------

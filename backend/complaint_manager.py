@@ -40,6 +40,7 @@ class ComplaintManager:
         description: str,
         location: str,
         contact: str = "",
+        user_id: Optional[int] = None,
     ) -> Complaint:
         """
         Full complaint submission pipeline:
@@ -68,6 +69,7 @@ class ComplaintManager:
             description=description.strip(),
             location=location.strip(),
             contact=contact.strip(),
+            user_id=user_id,
             category=ai_result.category,
             priority=ai_result.priority,
             ai_summary=ai_result.summary,

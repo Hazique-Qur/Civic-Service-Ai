@@ -99,7 +99,7 @@ function getPriorityClass(p) {
   return { Critical:'critical', High:'high', Medium:'medium', Low:'low' }[p] || 'medium';
 }
 function getStatusClass(s) {
-  return { Open:'open', Assigned:'assigned', 'In Progress':'in-progress', Resolved:'resolved' }[s] || 'open';
+  return { Open:'open', Assigned:'assigned', 'In Progress':'in-progress', Resolved:'resolved', Successful:'resolved' }[s] || 'open';
 }
 function getCategoryEmoji(c) {
   const m = {
